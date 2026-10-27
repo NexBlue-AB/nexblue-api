@@ -5,8 +5,9 @@ It is maintained by NexBlue and currently provides the communication layer used 
 the NexBlue Home Assistant integration.
 
 The package handles authentication, access-token refresh, charger discovery,
-charger telemetry, and start/stop charging commands. It is deliberately independent
-of Home Assistant so it can be reused by other Python applications.
+charger telemetry, charging commands, and dynamic current-limit control. It is
+deliberately independent of Home Assistant so it can be reused by other Python
+applications.
 
 ## Requirements
 
@@ -62,6 +63,7 @@ asyncio.run(main())
 - Charger discovery
 - Charger status and telemetry retrieval
 - Start charging and stop charging commands
+- Set the dynamic current limit (A), with its value included in charger status when supported
 - Typed charger, status, and token models
 - Safe exceptions for authentication, connection, rate-limit, offline-device, and
   rejected-command errors

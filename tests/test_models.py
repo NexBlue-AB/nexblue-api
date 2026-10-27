@@ -53,3 +53,10 @@ def test_charger_status_uses_numeric_charging_state() -> None:
     )
 
     assert status.charging_state == 2
+
+
+def test_charger_status_omits_unsupported_dynamic_current_limit() -> None:
+    """Treat a missing dynamic limit as unsupported by the charger firmware."""
+    status = ChargerStatus.from_api("NB123456", {"charging_state": 2})
+
+    assert status.dynamic_current_limit_a is None

@@ -140,6 +140,33 @@ class NexBlueClientTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(session.calls[1][1].endswith("/openapi/chargers/NB1/cmd/start_charging"))
         self.assertEqual(session.calls[1][2]["json"], {})
 
+    async def test_dynamic_current_limit_is_read_from_status_and_can_be_set(self):
+        session = Session([
+            Response(200, {"access_token": "access", "refresh_token": "refresh", "expires_in": 3600}),
+            Response(200, {"charging_state": 2, "dynamic_current_limit": 16.5}),
+            Response(200, {"result": 0}),
+        ])
+        client = NexBlueClient(session, "https://example.test")
+        await client.async_refresh_access_token("refresh")
+
+        status = await client.async_get_charger_status("NB1")
+        await client.async_set_dynamic_current_limit("NB1", 20.5)
+
+        self.assertEqual(status.dynamic_current_limit_a, 16.5)
+        self.assertEqual(session.calls[1][0], "GET")
+        self.assertTrue(
+            session.calls[1][1].endswith(
+                "/openapi/chargers/NB1/cmd/status"
+            )
+        )
+        self.assertEqual(session.calls[2][0], "POST")
+        self.assertTrue(
+            session.calls[2][1].endswith(
+                "/openapi/chargers/NB1/cmd/set_dynamic_current_limit"
+            )
+        )
+        self.assertEqual(session.calls[2][2]["json"], {"current_limit": 20.5})
+
     async def test_rejected_command_reports_user_safe_reason(self):
         session = Session([
             Response(200, {"access_token": "access", "refresh_token": "refresh", "expires_in": 3600}),

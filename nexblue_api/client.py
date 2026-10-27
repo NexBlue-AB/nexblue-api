@@ -113,11 +113,26 @@ class NexBlueClient:
         """Request charging stop; command availability is enforced by the API/device."""
         await self._async_command(serial_number, "stop_charging")
 
-    async def _async_command(self, serial_number: str, command: str) -> None:
+    async def async_set_dynamic_current_limit(
+        self, serial_number: str, current_limit: float
+    ) -> None:
+        """Set the charger dynamic current limit in amperes."""
+        await self._async_command(
+            serial_number,
+            "set_dynamic_current_limit",
+            {"current_limit": current_limit},
+        )
+
+    async def _async_command(
+        self,
+        serial_number: str,
+        command: str,
+        data: Mapping[str, Any] | None = None,
+    ) -> None:
         payload = await self._async_request(
             "POST",
             f"/openapi/chargers/{serial_number}/cmd/{command}",
-            json={},
+            json={} if data is None else data,
             authenticated=True,
             command=True,
         )

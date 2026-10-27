@@ -56,6 +56,7 @@ class ChargerStatus:
     cable_current_limit_a: int | None
     circuit_fuse_a: int | None
     current_limit_a: int | None
+    dynamic_current_limit_a: float | None
     cable_lock_mode: int | None
     access_level: int | None
     phase_charging: int | None
@@ -79,6 +80,7 @@ class ChargerStatus:
             cable_current_limit_a=_optional_int(payload.get("cable_current_limit")),
             circuit_fuse_a=_optional_int(payload.get("circuit_fuse")),
             current_limit_a=_optional_int(payload.get("current_limit")),
+            dynamic_current_limit_a=_optional_float(payload.get("dynamic_current_limit")),
             cable_lock_mode=_optional_int(payload.get("cable_lock_mode")),
             access_level=_optional_int(payload.get("access_level")),
             phase_charging=_optional_int(payload.get("phase_charging")),
@@ -100,6 +102,16 @@ def _optional_int(value: Any) -> int | None:
         return None
     try:
         return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value: Any) -> float | None:
+    """Return a float when the API included a numeric value."""
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        return float(value)
     except (TypeError, ValueError):
         return None
 
