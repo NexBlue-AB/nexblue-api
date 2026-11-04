@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -21,8 +22,9 @@ from .exceptions import (
     NexBlueDeviceOfflineError,
     NexBlueError,
     NexBlueRateLimitError,
+    NexBlueStatisticsNotSupportedError,
 )
-from .models import Charger, ChargerStatus
+from .models import Charger, ChargerStatus, EnergyUsage, LoadBalancer, PowerLevels
 from .models import TokenBundle
 
 # These codes were verified against the NexBlue OpenAPI stage environment.
@@ -105,6 +107,43 @@ class NexBlueClient:
         )
         return ChargerStatus.from_api(serial_number, payload)
 
+    async def async_list_load_balancers(self) -> list[LoadBalancer]:
+        """Return load balancers owned by the authenticated user."""
+        payload = await self._async_authenticated_request("GET", "/openapi/load_balancers")
+        return [LoadBalancer.from_api(item) for item in payload["data"]]
+
+    async def async_get_power_levels(
+        self, serial_number: str, from_date: datetime, to_date: datetime
+    ) -> PowerLevels:
+        """Return historical power and current samples for a time range."""
+        payload = await self._async_authenticated_request(
+            "GET",
+            f"/openapi/load_balancers/{serial_number}/statistics/power_levels",
+            params={"from_date": _iso_datetime(from_date), "to_date": _iso_datetime(to_date)},
+        )
+        return PowerLevels.from_api(payload)
+
+    async def async_get_energy_usage(
+        self,
+        serial_number: str,
+        from_date: datetime,
+        to_date: datetime,
+        tz: str,
+        granularity: str,
+    ) -> EnergyUsage:
+        """Return household consumption grouped by time zone and granularity."""
+        payload = await self._async_authenticated_request(
+            "GET",
+            f"/openapi/load_balancers/{serial_number}/statistics/energy_usage",
+            params={
+                "from_date": _iso_datetime(from_date),
+                "to_date": _iso_datetime(to_date),
+                "tz": tz,
+                "granularity": granularity,
+            },
+        )
+        return EnergyUsage.from_api(payload)
+
     async def async_start_charging(self, serial_number: str) -> None:
         """Request charging start; command availability is enforced by the API/device."""
         await self._async_command(serial_number, "start_charging")
@@ -143,10 +182,12 @@ class NexBlueClient:
             )
             raise NexBlueCommandError(message)
 
-    async def _async_authenticated_request(self, method: str, path: str) -> dict[str, Any]:
+    async def _async_authenticated_request(
+        self, method: str, path: str, *, params: Mapping[str, str] | None = None
+    ) -> dict[str, Any]:
         if not self._access_token:
             raise NexBlueAuthError("Access token is not available")
-        return await self._async_request(method, path, authenticated=True)
+        return await self._async_request(method, path, authenticated=True, params=params)
 
     async def _async_request(
         self,
@@ -154,6 +195,7 @@ class NexBlueClient:
         path: str,
         *,
         json: Mapping[str, Any] | None = None,
+        params: Mapping[str, str] | None = None,
         authenticated: bool,
         command: bool = False,
         auth_error_codes: frozenset[int] = frozenset(),
@@ -161,7 +203,7 @@ class NexBlueClient:
         headers = {"Authorization": f"Bearer {self._access_token}"} if authenticated else None
         try:
             async with self._session.request(
-                method, f"{self._base_url}{path}", json=json, headers=headers
+                method, f"{self._base_url}{path}", json=json, headers=headers, params=params
             ) as response:
                 if response.status in (401, 403):
                     raise NexBlueAuthError("Authentication failed")
@@ -178,6 +220,10 @@ class NexBlueClient:
                         raise NexBlueAuthError("Authentication failed")
                     if error_payload.get("code") == 2105:
                         raise NexBlueDeviceOfflineError("NexBlue charger is offline")
+                    if error_payload.get("code") == 3008:
+                        raise NexBlueStatisticsNotSupportedError(
+                            "Statistics are not supported for this device"
+                        )
                     if command:
                         raise NexBlueCommandError(
                             _command_http_error_message(response.status, error_payload)
@@ -195,6 +241,13 @@ class NexBlueClient:
         self._refresh_token = token.refresh_token or fallback_refresh_token
         expires_in = max(token.expires_in - 60, 0)
         self._access_token_expires_at = time.monotonic() + expires_in
+
+
+def _iso_datetime(value: datetime) -> str:
+    """Format a timezone-aware datetime for an OpenAPI query."""
+    if value.utcoffset() is None:
+        raise ValueError("Datetime must include a UTC offset")
+    return value.isoformat()
 
 
 async def _async_safe_json(response: Any) -> dict[str, Any]:

@@ -4,6 +4,7 @@ import base64
 import binascii
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 
@@ -38,6 +39,94 @@ class Charger:
     @classmethod
     def from_api(cls, payload: dict[str, Any]) -> "Charger":
         return cls(serial_number=str(payload["serial_number"]), role=payload.get("role"))
+
+
+@dataclass(frozen=True, slots=True)
+class LoadBalancer:
+    """A load balancer owned by the authenticated user."""
+
+    serial_number: str
+    name: str | None
+    category: str | None
+
+    @classmethod
+    def from_api(cls, payload: dict[str, Any]) -> "LoadBalancer":
+        return cls(payload["serial_number"], payload.get("name"), payload.get("category"))
+
+
+@dataclass(frozen=True, slots=True)
+class PowerLevel:
+    """One historical location power and current sample in kW and A."""
+
+    timestamp: datetime
+    location_current_l1: float | None
+    location_current_l2: float | None
+    location_current_l3: float | None
+    power: float | None
+
+    @classmethod
+    def from_api(cls, payload: dict[str, Any]) -> "PowerLevel":
+        return cls(
+            datetime.fromisoformat(payload["timestamp"]),
+            payload.get("location_current_l1"),
+            payload.get("location_current_l2"),
+            payload.get("location_current_l3"),
+            payload.get("power"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class PowerLevels:
+    """Historical power samples for one device."""
+
+    device_id: str
+    data: list[PowerLevel]
+
+    @classmethod
+    def from_api(cls, payload: dict[str, Any]) -> "PowerLevels":
+        return cls(
+            payload["device_id"], [PowerLevel.from_api(item) for item in payload["data"]]
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class EnergyUsageItem:
+    """Estimated household consumption in kWh for one time interval."""
+
+    from_date: datetime
+    to_date: datetime
+    consumption: float | None
+
+    @classmethod
+    def from_api(cls, payload: dict[str, Any]) -> "EnergyUsageItem":
+        return cls(
+            datetime.fromisoformat(payload["from_date"]),
+            datetime.fromisoformat(payload["to_date"]),
+            payload["consumption"],
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class EnergyUsage:
+    """Grouped household consumption in kWh for one device."""
+
+    device_id: str
+    granularity: str
+    tz: str
+    total_consumption: float | None
+    unit: str
+    data: list[EnergyUsageItem]
+
+    @classmethod
+    def from_api(cls, payload: dict[str, Any]) -> "EnergyUsage":
+        return cls(
+            payload["device_id"],
+            payload["granularity"],
+            payload["tz"],
+            payload["total_consumption"],
+            payload["unit"],
+            [EnergyUsageItem.from_api(item) for item in payload["data"]],
+        )
 
 
 @dataclass(frozen=True, slots=True)

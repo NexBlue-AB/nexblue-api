@@ -8,12 +8,27 @@ from .exceptions import (
     NexBlueDeviceOfflineError,
     NexBlueError,
     NexBlueRateLimitError,
+    NexBlueStatisticsNotSupportedError,
 )
-from .models import Charger, ChargerStatus, TokenBundle
+from .models import (
+    Charger,
+    ChargerStatus,
+    EnergyUsage,
+    EnergyUsageItem,
+    LoadBalancer,
+    PowerLevel,
+    PowerLevels,
+    TokenBundle,
+)
 
 __all__ = [
     "Charger",
     "ChargerStatus",
+    "EnergyUsage",
+    "EnergyUsageItem",
+    "LoadBalancer",
+    "PowerLevel",
+    "PowerLevels",
     "NexBlueAuthError",
     "NexBlueCommandError",
     "NexBlueClient",
@@ -21,5 +36,6 @@ __all__ = [
     "NexBlueDeviceOfflineError",
     "NexBlueError",
     "NexBlueRateLimitError",
+    "NexBlueStatisticsNotSupportedError",
     "TokenBundle",
 ]

@@ -6,6 +6,7 @@ the NexBlue Home Assistant integration.
 
 The package handles authentication, access-token refresh, charger discovery,
 charger telemetry, charging commands, and dynamic current-limit control. It is
+also able to discover owned load balancers and query Smart Meter statistics. It is
 deliberately independent of Home Assistant so it can be reused by other Python
 applications.
 
@@ -64,6 +65,8 @@ asyncio.run(main())
 - Charger status and telemetry retrieval
 - Start charging and stop charging commands
 - Set the dynamic current limit (A), with its value included in charger status when supported
+- List load balancers owned by the authenticated end user
+- Query historical Smart Meter power levels (up to 24 hours) and grouped energy usage (up to 100 groups)
 - Typed charger, status, and token models
 - Safe exceptions for authentication, connection, rate-limit, offline-device, and
   rejected-command errors

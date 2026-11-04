@@ -1,6 +1,7 @@
 """Library tests cover token handling and non-sensitive error handling."""
 
 import unittest
+from datetime import datetime, timedelta, timezone
 
 from nexblue_api import (
     NexBlueAuthError,
@@ -8,6 +9,7 @@ from nexblue_api import (
     NexBlueDeviceOfflineError,
     NexBlueError,
     NexBlueRateLimitError,
+    NexBlueStatisticsNotSupportedError,
 )
 
 
@@ -37,6 +39,57 @@ class Session:
 
 
 class NexBlueClientTest(unittest.IsolatedAsyncioTestCase):
+    async def test_load_balancer_statistics(self):
+        session = Session([
+            Response(200, {"data": [{"serial_number": "MX1", "name": "Meter", "category": "meter"}]}),
+            Response(200, {"device_id": "MX1", "data": [{"timestamp": "2026-11-03T00:00:00Z", "location_current_l1": 10.2, "power": 7.1}]}),
+            Response(200, {"device_id": "MX1", "granularity": "daily", "tz": "Asia/Shanghai", "total_consumption": None, "unit": "kWh", "data": [{"from_date": "2026-11-03T08:00:00+08:00", "to_date": "2026-11-04T08:00:00+08:00", "consumption": None}]}),
+        ])
+        client = NexBlueClient(session, "https://example.test")
+        client.set_access_token("access")
+        start = datetime(2026, 11, 3, 8, tzinfo=timezone(timedelta(hours=8)))
+        end = start + timedelta(days=1)
+
+        devices = await client.async_list_load_balancers()
+        power = await client.async_get_power_levels("MX1", start, end)
+        energy = await client.async_get_energy_usage("MX1", start, end, "Asia/Shanghai", "daily")
+
+        self.assertEqual(devices[0].serial_number, "MX1")
+        self.assertEqual(devices[0].category, "meter")
+        self.assertEqual(power.data[0].location_current_l1, 10.2)
+        self.assertIsNone(power.data[0].location_current_l2)
+        self.assertEqual(power.data[0].timestamp.utcoffset(), timedelta(0))
+        self.assertIsNone(energy.data[0].consumption)
+        self.assertIsNone(energy.total_consumption)
+        self.assertEqual(energy.data[0].from_date.utcoffset(), timedelta(hours=8))
+        self.assertTrue(session.calls[0][1].endswith('/openapi/load_balancers'))
+        self.assertTrue(session.calls[1][1].endswith('/openapi/load_balancers/MX1/statistics/power_levels'))
+        self.assertTrue(session.calls[2][1].endswith('/openapi/load_balancers/MX1/statistics/energy_usage'))
+        self.assertEqual(session.calls[1][2]['params']['from_date'], '2026-11-03T08:00:00+08:00')
+        self.assertEqual(session.calls[2][2]['params']['granularity'], 'daily')
+        self.assertEqual(session.calls[2][2]['headers'], {'Authorization': 'Bearer access'})
+
+    async def test_empty_load_balancer_data_and_unsupported_device(self):
+        session = Session([
+            Response(200, {"data": []}),
+            Response(200, {"device_id": "MX1", "data": []}),
+            Response(400, {"code": 3008}),
+        ])
+        client = NexBlueClient(session, "https://example.test")
+        client.set_access_token("access")
+        start = datetime(2026, 11, 3, tzinfo=timezone.utc)
+        end = start + timedelta(hours=1)
+        self.assertEqual(await client.async_list_load_balancers(), [])
+        self.assertEqual((await client.async_get_power_levels("MX1", start, end)).data, [])
+        with self.assertRaises(NexBlueStatisticsNotSupportedError):
+            await client.async_get_energy_usage("CX1", start, end, "UTC", "hourly")
+
+    async def test_statistics_reject_naive_datetimes(self):
+        client = NexBlueClient(Session([]), "https://example.test")
+        client.set_access_token("access")
+        with self.assertRaisesRegex(ValueError, "UTC offset"):
+            await client.async_get_power_levels("MX1", datetime(2026, 11, 3), datetime(2026, 11, 4, tzinfo=timezone.utc))
+
     async def test_login_keeps_refresh_token_not_password(self):
         session = Session([
             Response(200, {"access_token": "access", "refresh_token": "refresh", "expires_in": 3600}),

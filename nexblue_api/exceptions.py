@@ -17,6 +17,10 @@ class NexBlueRateLimitError(NexBlueError):
     """The NexBlue API asked the client to slow down."""
 
 
+class NexBlueStatisticsNotSupportedError(NexBlueError):
+    """Statistics are not supported for this device."""
+
+
 class NexBlueCommandError(NexBlueError):
     """A charger rejected a requested command."""
 
